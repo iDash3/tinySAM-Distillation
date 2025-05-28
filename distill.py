@@ -276,16 +276,16 @@ def main():
     
     # Training parameters
     training_group = parser.add_argument_group("training parameters")
-    training_group.add_argument("--batch-size", type=int, default=16,
-                               help="Training batch size (default: 16)")
+    training_group.add_argument("--batch-size", type=int, default=4,
+                               help="Training batch size (default: 4)")
     training_group.add_argument("--epochs", type=int, default=20,
                                help="Number of training epochs (default: 20)")
     training_group.add_argument("--lr", type=float, default=1e-4,
                                help="Learning rate (default: 1e-4)")
-    training_group.add_argument("--num-workers", type=int, default=4,
-                               help="Number of dataloader workers (default: 4)")
-    training_group.add_argument("--save-freq", type=int, default=5,
-                               help="Checkpoint save frequency in epochs (default: 5)")
+    training_group.add_argument("--num-workers", type=int, default=10,
+                               help="Number of dataloader workers (default: 10)")
+    training_group.add_argument("--save-freq", type=int, default=1,
+                               help="Checkpoint save frequency in epochs (default: 1)")
     
     args = parser.parse_args()
     
@@ -354,9 +354,9 @@ def main():
             
             while True:
                 try:
-                    batch_input = input(f"\nEnter batch size (4-32) [16]: ").strip()
+                    batch_input = input(f"\nEnter batch size (4-32) [4]: ").strip()
                     if not batch_input:
-                        args.batch_size = 16
+                        args.batch_size = 4
                         break
                     batch_size = int(batch_input)
                     if 1 <= batch_size <= 64:
@@ -376,9 +376,9 @@ def main():
             
             while True:
                 try:
-                    workers_input = input(f"\nEnter number of workers (1-16) [4]: ").strip()
+                    workers_input = input(f"\nEnter number of workers (1-16) [10]: ").strip()
                     if not workers_input:
-                        args.num_workers = 4
+                        args.num_workers = 10
                         break
                     num_workers = int(workers_input)
                     if 1 <= num_workers <= 32:
