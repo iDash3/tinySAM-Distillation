@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 import tarfile
 import textwrap
@@ -116,16 +117,26 @@ class SAMProcessor:
                 status = json.load(fp)
             # Add any new entries
             for entry in entries:
-                status.setdefault(
-                    entry["file_name"],
-                    {"cdn_link": entry["cdn_link"], "downloaded": False}
-                )
+                if entry["file_name"] not in status:
+                    status[entry["file_name"]] = {
+                        "cdn_link": entry["cdn_link"], 
+                        "downloaded": False,
+                        "incomplete": False
+                    }
+                else:
+                    # Ensure existing entries have incomplete field
+                    if "incomplete" not in status[entry["file_name"]]:
+                        status[entry["file_name"]]["incomplete"] = False
             # Add validated field if missing
             if "validated" not in status:
                 status["validated"] = False
         else:
             status = {
-                entry["file_name"]: {**entry, "downloaded": False}
+                entry["file_name"]: {
+                    **entry, 
+                    "downloaded": False,
+                    "incomplete": False
+                }
                 for entry in entries
             }
             status["validated"] = False
@@ -171,25 +182,87 @@ class SAMProcessor:
                 dest_path.unlink(missing_ok=True)
             return False
 
-    def extract_tar_file(self, tar_path: Path) -> bool:
-        """Extract images and JSON files from tar archive."""
+    def check_disk_space(self, min_gb_required: float = 2.0) -> Tuple[bool, float]:
+        """Check if there's enough disk space available.
+        
+        Args:
+            min_gb_required: Minimum GB required to continue
+            
+        Returns:
+            Tuple of (has_enough_space, available_gb)
+        """
+        try:
+            total, used, free = shutil.disk_usage(self.data_dir)
+            free_gb = free / (1024**3)  # Convert bytes to GB
+            has_enough = free_gb >= min_gb_required
+            return has_enough, free_gb
+        except Exception as exc:
+            print(f"      Warning: Could not check disk space: {exc}")
+            return True, 0.0  # Assume we have space if we can't check
+
+    def extract_tar_file(self, tar_path: Path) -> Tuple[bool, bool]:
+        """Extract images and JSON files from tar archive.
+        
+        Returns:
+            Tuple of (success, incomplete) where:
+            - success: True if extraction completed without errors
+            - incomplete: True if extraction was stopped due to disk space
+        """
+        extracted_images = 0
+        extracted_json = 0
+        incomplete = False
+        
         try:
             with tarfile.open(tar_path) as tar:
-                for member in tar.getmembers():
+                members = tar.getmembers()
+                total_members = len(members)
+                
+                for i, member in enumerate(members):
                     name = member.name
                     # Skip unsafe paths
                     if name.startswith("/") or ".." in name:
                         continue
                     
                     lower_name = name.lower()
-                    if lower_name.endswith((".jpg", ".jpeg", ".png")):
-                        tar.extract(member, self.images_dir)
-                    elif lower_name.endswith(".json"):
-                        tar.extract(member, self.json_dir)
-            return True
+                    is_image = lower_name.endswith((".jpg", ".jpeg", ".png"))
+                    is_json = lower_name.endswith(".json")
+                    
+                    if is_image or is_json:
+                        # Check disk space every 1000 images
+                        if is_image and extracted_images > 0 and extracted_images % 1000 == 0:
+                            has_space, free_gb = self.check_disk_space(min_gb_required=2.0)
+                            if not has_space:
+                                print(f"      WARNING: Low disk space ({free_gb:.1f}GB remaining)!")
+                                print(f"      Stopping extraction at {extracted_images} images")
+                                print(f"      Processed {i+1}/{total_members} files from archive")
+                                incomplete = True
+                                break
+                            else:
+                                print(f"      Extracted {extracted_images} images... ({free_gb:.1f}GB disk space remaining)")
+                        
+                        # Extract the file
+                        if is_image:
+                            tar.extract(member, self.images_dir)
+                            extracted_images += 1
+                        elif is_json:
+                            tar.extract(member, self.json_dir)
+                            extracted_json += 1
+                
+                # Final disk space check
+                if not incomplete:
+                    has_space, free_gb = self.check_disk_space(min_gb_required=1.0)
+                    if not has_space:
+                        print(f"      WARNING: Very low disk space ({free_gb:.1f}GB remaining) after extraction!")
+                
+                print(f"      Extracted {extracted_images} images and {extracted_json} JSON files")
+                if incomplete:
+                    print(f"      Extraction marked as INCOMPLETE due to disk space constraints")
+                
+                return True, incomplete
+                
         except Exception as exc:
             print(f"      Failed to extract {tar_path.name}: {exc}")
-            return False
+            return False, False
 
     def download_and_extract_batch(self, file_list_content: str, percentage: float = 1.0) -> bool:
         """Download and extract a batch of files based on percentage."""
@@ -223,10 +296,18 @@ class SAMProcessor:
                 print(f"      Downloaded archive {filename}")
 
                 # Extract file
-                if self.extract_tar_file(tar_path):
+                success, incomplete = self.extract_tar_file(tar_path)
+                if success:
                     print(f"      Extracted images from {filename}")
                     tar_path.unlink(missing_ok=True)  # Clean up tar file
                     print(f"      Cleaned up archive {filename}")
+                    
+                    # Mark extraction status in JSON
+                    if incomplete:
+                        status[filename]["incomplete"] = True
+                        print(f"      Marked {filename} as incomplete due to disk space constraints")
+                    else:
+                        status[filename]["incomplete"] = False
                 else:
                     print(f"      Extraction failed for {filename}")
 
@@ -329,10 +410,19 @@ class SAMProcessor:
             with self.json_path.open() as fp:
                 download_status = json.load(fp)
             downloaded, total = self.get_download_progress(download_status)
+            
+            # Count incomplete extractions
+            incomplete_count = sum(
+                1 for k, v in download_status.items() 
+                if k != "validated" and isinstance(v, dict) and v.get("incomplete", False)
+            )
+            
             status["download_progress"] = {"downloaded": downloaded, "total": total}
+            status["incomplete_extractions"] = incomplete_count
             status["validated"] = download_status.get("validated", False)
         else:
             status["download_progress"] = {"downloaded": 0, "total": 0}
+            status["incomplete_extractions"] = 0
             status["validated"] = False
         
         # Check images
@@ -375,6 +465,8 @@ def interactive_download(data_dir: Path = None) -> bool:
         total = status["download_progress"]["total"]
         print(f"Current progress: {downloaded}/{total} archive files downloaded")
         print(f"Images extracted: {status['image_count']}")
+        if status["incomplete_extractions"] > 0:
+            print(f"Incomplete extractions: {status['incomplete_extractions']} (stopped due to disk space)")
         
         use_existing = input("\nUse current dataset or download more? (use/download): ").strip().lower()
         if use_existing.startswith('u'):
@@ -439,6 +531,7 @@ def main():
         print("Dataset Status:")
         print(f"  Downloaded files: {status['download_progress']['downloaded']}/{status['download_progress']['total']}")
         print(f"  Extracted images: {status['image_count']/1000:.1f}k")
+        print(f"  Incomplete extractions: {status['incomplete_extractions']}")
         print(f"  Validated: {'Yes' if status['validated'] else 'No'}")
         return
     
