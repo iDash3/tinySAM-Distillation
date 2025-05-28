@@ -177,22 +177,83 @@ def prepare_dataset(data_dir: Optional[Path] = None, interactive: bool = True) -
             return processor.download_and_extract_batch(file_list_content, 0.1)
 
 
-def run_training(data_dir: Optional[Path] = None, sam_weights_path: Optional[Path] = None):
-    """Run the training script (placeholder for now)."""
+def run_training(data_dir: Optional[Path] = None, sam_weights_path: Optional[Path] = None, 
+                batch_size: int = 8, epochs: int = 20, lr: float = 1e-4, 
+                num_workers: int = 4, save_freq: int = 5):
+    """Run the training script."""
     print("\n" + "="*40)
-    print("Step 3: MODEL TRAINING")
+    print("Step 4: MODEL TRAINING")
     print("="*40)
     
-    print("Training script not yet implemented.")
-    print("This is where the SAM distillation training would occur.")
-    print(f"Dataset location: {data_dir or './datasets/sam'}")
+    if not sam_weights_path or not sam_weights_path.exists():
+        print("Error: SAM weights not found. Cannot proceed with training.")
+        return False
     
-    # Placeholder for future training script call:
-    # training_script = Path("train.py")
-    # if training_script.exists():
-    #     subprocess.run([sys.executable, str(training_script), "--data-dir", str(data_dir)])
-    # else:
-    #     print("Training script not found.")
+    # Set up paths
+    data_dir = data_dir or Path("./datasets/sam")
+    images_dir = data_dir / "images"
+    output_dir = Path("./models/tiny_sam")
+    
+    # Check if dataset exists
+    if not images_dir.exists():
+        print(f"Error: Images directory not found: {images_dir}")
+        print("Please run dataset preparation first.")
+        return False
+    
+    # Count images
+    image_files = [f for f in images_dir.iterdir() 
+                   if f.is_file() and f.suffix.lower() in {".jpg", ".jpeg", ".png"}]
+    
+    if len(image_files) == 0:
+        print("Error: No images found in dataset directory.")
+        print("Please run dataset preparation first.")
+        return False
+    
+    print(f"Found {len(image_files)/1000:.1f}k images for training")
+    print(f"Dataset location: {images_dir}")
+    print(f"SAM weights: {sam_weights_path}")
+    print(f"Output directory: {output_dir}")
+    print(f"Training config: {epochs} epochs, batch size {batch_size}, LR {lr}")
+    
+    try:
+        # Import training module after requirements are installed
+        from train import run_training as train_model
+        
+        print("\nStarting training...")
+        print("This may take several hours depending on your hardware.")
+        
+        # Run training with user-specified parameters
+        success = train_model(
+            img_dir=images_dir,
+            sam_checkpoint=sam_weights_path,
+            out_dir=output_dir,
+            batch_size=batch_size,
+            epochs=epochs,
+            lr=lr,
+            weight_decay=1e-5,
+            val_split=0.1,
+            save_freq=save_freq,
+            num_workers=num_workers,
+            use_amp=True   # Enable mixed precision by default
+        )
+        
+        if success:
+            print(f"\nTraining completed successfully!")
+            print(f"Model checkpoints saved to: {output_dir}")
+            print(f"Training logs saved to: {output_dir}/training.log")
+            print(f"Validation metrics saved to: {output_dir}/val_log.csv")
+        else:
+            print("\nTraining failed. Check the logs for details.")
+            
+        return success
+        
+    except ImportError as e:
+        print(f"Error importing training module: {e}")
+        print("Please ensure all requirements are installed.")
+        return False
+    except Exception as e:
+        print(f"Training failed with error: {e}")
+        return False
 
 
 def main():
@@ -212,6 +273,19 @@ def main():
                        help="Skip training (dataset preparation only)")
     parser.add_argument("--non-interactive", action="store_true",
                        help="Run without user prompts")
+    
+    # Training parameters
+    training_group = parser.add_argument_group("training parameters")
+    training_group.add_argument("--batch-size", type=int, default=16,
+                               help="Training batch size (default: 16)")
+    training_group.add_argument("--epochs", type=int, default=20,
+                               help="Number of training epochs (default: 20)")
+    training_group.add_argument("--lr", type=float, default=1e-4,
+                               help="Learning rate (default: 1e-4)")
+    training_group.add_argument("--num-workers", type=int, default=4,
+                               help="Number of dataloader workers (default: 4)")
+    training_group.add_argument("--save-freq", type=int, default=5,
+                               help="Checkpoint save frequency in epochs (default: 5)")
     
     args = parser.parse_args()
     
@@ -266,7 +340,94 @@ def main():
     
     # Step 4: Run training
     if not args.skip_training:
-        if not run_training(args.data_dir, sam_weights_path):
+        # Get training parameters from user if in interactive mode
+        if interactive:
+            print("\n" + "="*40)
+            print("TRAINING CONFIGURATION")
+            print("="*40)
+            
+            print("\nBATCH SIZE")
+            print("Batch size determines how many images are processed simultaneously.")
+            print("- Larger batch sizes (16-32): Faster training, better gradients, but need more GPU memory")
+            print("- Smaller batch sizes (4-8): Slower training, but work with limited GPU memory")
+            print("- If you get 'CUDA out of memory' errors, reduce batch size")
+            
+            while True:
+                try:
+                    batch_input = input(f"\nEnter batch size (4-32) [16]: ").strip()
+                    if not batch_input:
+                        args.batch_size = 16
+                        break
+                    batch_size = int(batch_input)
+                    if 1 <= batch_size <= 64:
+                        args.batch_size = batch_size
+                        break
+                    else:
+                        print("Please enter a batch size between 1 and 64.")
+                except ValueError:
+                    print("Please enter a valid number.")
+            
+            print(f"\nNUMBER OF WORKERS")
+            print("Workers control how many CPU processes load data in parallel.")
+            print("- More workers (8-16): Faster data loading, but use more RAM")
+            print("- Fewer workers (2-4): Slower data loading, but use less RAM")
+            print("- If you get 'too many open files' or RAM errors, reduce workers")
+            print("- Recommended: Start with 4, increase if you have >16GB RAM")
+            
+            while True:
+                try:
+                    workers_input = input(f"\nEnter number of workers (1-16) [4]: ").strip()
+                    if not workers_input:
+                        args.num_workers = 4
+                        break
+                    num_workers = int(workers_input)
+                    if 1 <= num_workers <= 32:
+                        args.num_workers = num_workers
+                        break
+                    else:
+                        print("Please enter a number of workers between 1 and 32.")
+                except ValueError:
+                    print("Please enter a valid number.")
+            
+            print(f"\nNUMBER OF EPOCHS")
+            print("Epochs determine how many times the model sees the entire dataset.")
+            print("- More epochs (10-15): Better training, but takes longer and may overfit")
+            print("- Fewer epochs (3-8): Faster training, but may underfit")
+            print("- Recommended: Start with 5-10 for distillation tasks")
+            print("- You can always resume training from checkpoints later")
+            
+            while True:
+                try:
+                    epochs_input = input(f"\nEnter number of epochs (1-15) [5]: ").strip()
+                    if not epochs_input:
+                        args.epochs = 5
+                        break
+                    epochs = int(epochs_input)
+                    if 1 <= epochs <= 15:
+                        args.epochs = epochs
+                        break
+                    else:
+                        print("Please enter a number of epochs between 1 and 15.")
+                except ValueError:
+                    print("Please enter a valid number.")
+            
+            print(f"\nTraining Configuration:")
+            print(f"  Batch size: {args.batch_size}")
+            print(f"  Workers: {args.num_workers}")
+            print(f"  Epochs: {args.epochs}")
+            print(f"  Learning rate: {args.lr}")
+            
+            print(f"\nTroubleshooting Tips:")
+            print(f"  - GPU memory error: Reduce batch size to {max(1, args.batch_size // 2)}")
+            print(f"  - Data loading slow: Increase workers to {min(16, args.num_workers * 2)}")
+            print(f"  - RAM usage high: Reduce workers to {max(1, args.num_workers // 2)}")
+            
+            confirm = input(f"\nStart training with these settings? (y/n) [y]: ").strip().lower()
+            if confirm and not confirm.startswith('y'):
+                print("Training cancelled.")
+                return
+        
+        if not run_training(args.data_dir, sam_weights_path, args.batch_size, args.epochs, args.lr, args.num_workers, args.save_freq):
             print("Training failed. Exiting.")
             sys.exit(1)
     else:
