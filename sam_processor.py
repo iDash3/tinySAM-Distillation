@@ -306,6 +306,9 @@ class SAMProcessor:
                     if incomplete:
                         status[filename]["incomplete"] = True
                         print(f"      Marked {filename} as incomplete due to disk space constraints")
+                        print(f"      STOPPING batch processing - insufficient disk space for more archives")
+                        self.save_download_status(status)
+                        return False  # Stop processing entirely
                     else:
                         status[filename]["incomplete"] = False
                 else:
@@ -319,17 +322,29 @@ class SAMProcessor:
         finally:
             self.save_download_status(status)
 
-        # Run validation after successful download
-        print("\nValidating downloaded images...")
-        summary = self.validate_images(verbose=False)
-        self.print_summary(summary)
+        # Check if we processed all files successfully
+        processed_files = [f for f in batch if status[f]["downloaded"]]
+        incomplete_files = [f for f in processed_files if status[f].get("incomplete", False)]
         
-        # Mark as validated
-        status["validated"] = True
-        self.save_download_status(status)
+        if incomplete_files:
+            print(f"\nProcessed {len(processed_files)} archive(s), but stopped due to disk space constraints.")
+            print("You may want to free up disk space before downloading more archives.")
+        else:
+            print(f"\nSuccessfully processed {len(processed_files)} archive(s).")
+
+        # Run validation after successful download (only if we have images)
+        if processed_files:
+            print("\nValidating downloaded images...")
+            summary = self.validate_images(verbose=False)
+            self.print_summary(summary)
+            
+            # Mark as validated
+            status["validated"] = True
+            self.save_download_status(status)
+            
+            print("Validation complete!")
         
-        print("Validation complete!")
-        return True
+        return len(processed_files) > 0  # Return True if we processed at least one file
 
     def validate_images(self, verbose: bool = False) -> DatasetSummary:
         """Validate all images in the dataset and return summary statistics."""
