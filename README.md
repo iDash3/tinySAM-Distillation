@@ -12,16 +12,20 @@ Done. Everything is handled for you.
 
 ## Setup
 
-**Files:** All modules can be run standalone with CLI interfaces, but managed through `distill.py`:
+Pipeline automatically:
+
+- Installs dependencies
+- Downloads dataset (interactive - choose how much) [~20 GB min free space]
+- Downloads SAM weights
+- Trains TinyViT student model
+
+**Requirements:** Python 3.8+, GPU recommended
+
+**Files:** All modules have standalone CLI interfaces and are managed through `distill.py`:
 
 - `distill.py` - Main pipeline (run this)
 - `sam_processor.py` - Dataset processor
 - `train.py` - Training script
 - `model.py` - TinyViT architecture
 
-Pipeline automaticaly:
-
-- Installs dependencies
-- Downloads dataset (interactive - choose how much) [~20 GB min free space]
-- Downloads SAM weights
-- Trains TinyViT student model
+You are more than welcome to make architectural changes, train a smaller or bigger model, etc.
