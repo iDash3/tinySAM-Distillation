@@ -8,9 +8,7 @@ cd tinysamdistill
 python distill.py
 ```
 
-Done. Everything is handled for you.
-
-## What it does
+Done. Everything is handled for you:
 
 1. Installs dependencies
 2. Downloads dataset (interactive - choose how much)
