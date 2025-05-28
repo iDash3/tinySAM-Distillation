@@ -1,0 +1,35 @@
+# Dataset files
+datasets/
+*.tar
+*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model files
+*.pth
+*.pt
+*.ckpt
+models/
+checkpoints/
+
+# Logs
+*.log
+logs/
+wandb/
+
+# Temporary files
+*.tmp
+temp/ 
