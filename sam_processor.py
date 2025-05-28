@@ -230,7 +230,7 @@ class SAMProcessor:
                     if is_image or is_json:
                         # Check disk space every 1000 images
                         if is_image and extracted_images > 0 and extracted_images % 1000 == 0:
-                            has_space, free_gb = self.check_disk_space(min_gb_required=2.0)
+                            has_space, free_gb = self.check_disk_space(min_gb_required=1.0)
                             if not has_space:
                                 print(f"      WARNING: Low disk space ({free_gb:.1f}GB remaining)!")
                                 print(f"      Stopping extraction at {extracted_images} images")
@@ -250,7 +250,7 @@ class SAMProcessor:
                 
                 # Final disk space check
                 if not incomplete:
-                    has_space, free_gb = self.check_disk_space(min_gb_required=1.0)
+                    has_space, free_gb = self.check_disk_space(min_gb_required=0.5)
                     if not has_space:
                         print(f"      WARNING: Very low disk space ({free_gb:.1f}GB remaining) after extraction!")
                 
