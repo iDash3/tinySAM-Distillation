@@ -95,6 +95,30 @@ def install_requirements():
         print("Please ensure requirements.txt exists in the current directory.")
         return False
     
+    print("This script will install Python packages from requirements.txt using pip.")
+    print("")
+    print("IMPORTANT: Consider using a virtual environment to avoid conflicts:")
+    print("  python -m venv sam_env")
+    print("  source sam_env/bin/activate  # On Windows: sam_env\\Scripts\\activate")
+    print("  pip install --upgrade pip")
+    print("")
+    print("If you're already in a virtual environment or want to install globally,")
+    print("you can proceed. The following packages will be installed:")
+    print("  -> PyTorch and torchvision")
+    print("  -> PIL (Pillow) for image processing")
+    print("  -> requests and tqdm for downloads")
+    print("  -> segment-anything package")
+    print("  -> Other training dependencies")
+    print("")
+    
+    confirm = input("Continue with package installation? (y/n) [y]: ").strip().lower()
+    if not confirm:  # Empty input defaults to 'y'
+        confirm = 'y'
+    if not confirm.startswith('y'):
+        print("Package installation cancelled.")
+        print("Please set up your environment and run the script again.")
+        return False
+    
     print("Installing requirements...")
     try:
         subprocess.run([
