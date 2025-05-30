@@ -306,9 +306,6 @@ class SAMProcessor:
                     if incomplete:
                         status[filename]["incomplete"] = True
                         print(f"      Marked {filename} as incomplete due to disk space constraints")
-                        print(f"      STOPPING batch processing - insufficient disk space for more archives")
-                        self.save_download_status(status)
-                        return False  # Stop processing entirely
                     else:
                         status[filename]["incomplete"] = False
                 else:
