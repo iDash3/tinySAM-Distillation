@@ -314,11 +314,11 @@ def main():
     args = parser.parse_args()
     
     print("\n" * 3)
-    print("█   █  █████  █   █  █████  ███")
-    print("█   █  █      ██  █    █     █ ")
-    print("█   █  █████  █ █ █    █     █")
-    print("█   █  █      █  ██    █     █ ")
-    print("  █    █████  █   █    █    ███      sam")
+    print("█   █  ███  █   █  ███")
+    print("██ ██   █   ██  █   █ ")
+    print("█ █ █   █   █ █ █   █ ")
+    print("█   █   █   █  ██   █ ")
+    print("█   █  ███  █   █  ███      sam")
     print("\n" * 3)
 
     print("This pipeline will:")

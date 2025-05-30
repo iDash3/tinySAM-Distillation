@@ -1,10 +1,10 @@
-# ventiSAM Distillation
+# miniSAM Distillation
 
 Distill Meta's Segment Anything Model (SAM) into a lightweight 5M parameter TinyViT.
 
 ```bash
-git clone https://github.com/iDash3/ventiSAM-Distillation.git
-cd ventiSAM-Distillation
+git clone https://github.com/iDash3/miniSAM-Distillation.git
+cd miniSAM-Distillation
 python distill.py
 ```
 
