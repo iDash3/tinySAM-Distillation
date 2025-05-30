@@ -76,7 +76,7 @@ def save_checkpoint(state, out_dir: Path, epoch: int):
     logging.info(f"Saved checkpoint: {fname}")
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train TinySAM model via knowledge distillation")
+    p = argparse.ArgumentParser(description="Train ventiSAM model via knowledge distillation")
     p.add_argument("--img-dir",    type=Path, required=True, help="Directory containing training images")
     p.add_argument("--out-dir",    type=Path, required=True, help="Output directory for checkpoints and logs")
     p.add_argument("--sam-check",  type=Path, required=True, help="Path to SAM teacher model checkpoint")
@@ -150,7 +150,7 @@ def run_training(
             logger.addHandler(file_handler)
         
         logging.info("="*50)
-        logging.info("Starting TinySAM training pipeline")
+        logging.info("Starting ventiSAM training pipeline")
         logging.info("="*50)
         logging.info(f"Image directory: {img_dir}")
         logging.info(f"SAM checkpoint: {sam_checkpoint}")
